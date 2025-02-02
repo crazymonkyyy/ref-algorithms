@@ -123,7 +123,18 @@ auto take(R)(R r,int i){
 	}
 	return Take(r,i);
 }
+auto takeexact(R)(R r,int i){
+	struct Take{
+		R r;
+		int i;
+		auto front()=>r.front;
+		void popFront(){r.popFront; i--;}
+		bool empty()=>i<=0;
+	}
+	return Take(r,i);
+}
 mixin print!"count(1,5,1).cycle.take(8)";
+mixin print!"count(1,5,1).takeexact(8)";
 auto drop(R)(R r,int i){
 	while(i-->0 && ! r.empty){
 		r.popFront;
@@ -276,4 +287,137 @@ auto only(E)(E e){//only here for sort
 //	r.front.only,
 //	r.drop(1).filter2!(a=>a>=r.front).array2.sort).array;
 //mixin print!"countdown(10).sort";
-// clever pure functional sort is hard to get working idk
+// clever pure functional sort is hard to get working idk, skiping
+
+auto find(alias F,R)(R r){
+	while( ! r.empty && ! F(r) ){
+		r.popFront;
+	}
+	return r;
+}
+mixin print!"five.find!(a=>a.front==3)";
+mixin print!"five.find!(a=>a.front==99)";
+auto findnext(alias F,R)(R r){
+	if(r.empty){return r;}
+	r.popFront;
+	return r.find!F;
+}
+mixin print!"five.find!(a=>a.front>=3).findnext!(a=>a.front>=3)";
+mixin print!"five.find!(a=>a.front>=99).findnext!(a=>a.front>=99)";
+
+auto overflow(R,E)(R r,E e){
+	struct Overflow{
+		R r;
+		E e;
+		auto front()=>r.empty?e:r.front;
+		auto popFront(){
+			if( ! r.empty){ r.popFront;}
+		}
+		auto empty()=>r.empty;
+	}
+	return Overflow(r,e);
+}
+auto baddrop20(R)(R r){
+	foreach(i;0..20){r.popFront;}
+	return r;
+}
+mixin print_!"five.baddrop20.front";
+mixin print_!"five.overflow(-1).baddrop20.front";
+
+struct Tuple(T...){
+	T expand; alias expand this;
+}
+auto tuple(T...)(T t)=>Tuple!T(t);
+mixin print_!"tuple(1,13.37)";
+
+//auto zip(R...)(R r){
+//	struct Zip{
+//		R r;
+//		auto front(){
+//			enum args=count(0,r.length-1,1).map!(a=>"r["~cast(char)(a+'0')~"],");
+//			return args;
+//		}
+//	}
+//	return Zip(r);
+//}
+//mixin print_!"zip(five,five).front";
+auto emptyrange(E)(E e){
+	struct empty{
+		E front;//void front(){} doesnt seem to work
+		void popFront(){}
+		enum bool empty=true;
+	}
+	return empty(e);
+}
+mixin print!"emptyrange(int.max)";
+auto repeat(E)(E e,int i)=>emptyrange(e).takeexact(i);
+mixin print!"5.repeat(3)";
+
+auto replacewhen(alias F,alias G,R)(R r){
+	struct replace{
+		R r;
+		auto front()=>F(r)?G(r):r.front;
+		void popFront(){r.popFront;}
+		bool empty()=>r.empty;
+	}
+	return replace(r);
+}
+mixin print!"five.replacewhen!(a=>a.front==3,a=>99)";
+mixin print!"five.replacewhen!(a=>a.front%2,a=>a.drop(1).front)";
+
+auto isdone(R)(R r){
+	struct doneness{
+		R r;
+		auto front()=>r.empty;
+		void popFront(){r.front;r.popFront;}
+		auto empty()=>r.empty;
+	}
+	return doneness(r);
+}
+mixin print_!"int i;five.map!((a){i+=a; i.write(\",\");}).isdone.last";
+
+auto mask(R,R2)(R r,R2 r2){
+	struct Mask{
+		R r; R2 r2;
+		auto front()=>r.front;
+		auto popFront(){
+			r.popFront; r2.popFront;
+			while( ! empty && ! r2.front){
+				r.popFront; r2.popFront;
+		}}
+		auto empty()=>r.empty || r2.empty;
+	}
+	return Mask(r,r2).find!(a=>a.r2.front);
+}
+mixin print!"five.mask(countdown(10).map!(a=>a%2))/*needs testing*/";
+
+auto takeuntil(R)(R base,R other){
+	struct until{
+		R r;
+		R other;
+		auto front()=>r.front;
+		void popFront(){r.popFront;}
+		bool empty()=>r==other;
+	}
+	return until(base,other);
+}
+mixin print!"five.takeuntil(five.find!(a=>a.front==3))";
+//should work with sumtypes
+template switchmap(alias F,Fs...){ auto switchmap(R)(R r){
+	struct switch_{
+		R r;
+		auto front(){
+			switch(F(r)){
+				static foreach(i,f;Fs){
+					case i:return f(r.front);
+				}
+				default: assert(0);
+			}
+		}
+		void popFront(){r.popFront;}
+		bool empty()=>r.empty;
+	}
+	return switch_(r);
+}}
+mixin print_!"five.switchmap!(a=>a.front%2,a=>\"odd\".writeln,a=>a.writeln).isdone.last";
+mixin print!"five.switchmap!(a=>a.front%2,a=>\"odd\",a=>\"even\")";
